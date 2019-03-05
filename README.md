@@ -1,6 +1,6 @@
 # VA-ECLS Survival Analysis with scRNASeq
 
-Technical description of analysis of scRNASeq data for our forthcoming VA-ECLS survival paper. See final_analysis.rmd (or its knitted version, final_analysis.html) for details.
+Technical description of analysis of scRNASeq data for our forthcoming VA-ECLS survival paper. See final_analysis.rmd (or its knitted version, [final_analysis.html](https://vanandelinstitute.github.io/va_ecls/final_analysis.html)) for details.
 
 # GEO Submission Status
 
