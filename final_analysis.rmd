@@ -1,12 +1,14 @@
 ---
-title: Data Analysis Supplement
-date: February 20, 2019
+title: "Data Analysis Supplement"
 output:
-    html_document:
-      theme: lumen
-      highlight: null
-      toc: true
-      toc_float: true
+  html_document:
+    highlight: null
+    theme: lumen
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+date: "February 20, 2019"
 ---
 
 ```{r setup, include=FALSE}
@@ -20,12 +22,12 @@ This document was prepared in support of our paper:
 <center>
 <b>Single cell transcriptomics identifies immunologic priming related to extra corporeal life support survival.</b>
 
-Eric J. Kort MD, Matthew Weiland MS, Emily Eugster BS, Hsiao-yun Milliron PhD, Edgars Grins MD, Marzia Leacche MD, Stephen J Fitch MD, Theodore J  Boeve MD, Greg Marco MD, Michael Dickinson MD, Penny Wilton MD, Stefan Jovinge PhD
+Eric J. Kort MD, Matthew Weiland, Edgars Grins MD, Emily Eugster MS, Hsiao-yun Milliron PhD, Catherine Kelty MS, Nabin Manandhar Shrestha PhD, Tomasz Timek MD, Marzia Leacche MD, Stephen J Fitch MD, Theodore J  Boeve MD, Greg Marco MD, Michael Dickinson MD, Penny Wilton MD, Stefan Jovinge MD PhD
 
 </center>
 
 
-The following sections document how the data for this paper were processed and how the figures were generated.  Those who wish to do so can recreate the figures from the paper from data (that will soon be) posted on GEO, and the code below.  For efficient compiling of this document, the "eval=FALSE" option was set globally.  Readers desiring to repeat the analysis can either run each code chunk below manually, or change the setting line at the top of the Rmd file from:
+The following sections document how the data for this paper were processed and how the figures were generated.  Those who wish to do so can recreate the figures from the paper from data posted on GEO under accession [GSE127221](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE127221), and the code below.  For efficient compiling of this document, the "eval=FALSE" option was set globally.  Readers desiring to repeat the analysis can either run each code chunk below manually, or change the setting line at the top of the Rmd file from:
 
 ```bash
 knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
@@ -45,7 +47,7 @@ Since the processed data elements created below are save as RDS files in the chu
 
 ## Pre-requisites
 
-To run the following analysis, the file `PBMC_merged_filtered.rds` must be obtained from the GEO series related to this study (GSE0000000).  The second panel of figure 4b requires the list of genes from Supplmental Table S4 (table_s4.txt).  The following code assumes these files are within a subdirectory named "Final_Data" underneath the working directory.  Note that cloning the github repo will create the necessary directory structure, including the file table_s4.txt.  However, `PBMC_merged_filtered_normalized.rds` is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.
+To run the following analysis, the file [`PBMC_merged_filtered_recoded.rds`](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE127221&format=file&file=GSE127221%5FPBMC%5Fmerged%5Ffiltered%5Frecoded%2Erds%2Egz) must be obtained from the GEO series related to this study (GSE127221).  The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as `Final_Data/table_s5.txt`.  The following code assumes these files are within a subdirectory named "Final_Data" underneath the working directory.  Note that cloning the github repo will create the necessary directory structure with supporting files.  However, `PBMC_merged_filtered_recoded.rds` is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.
 
 Running the following analysis requires a computer with R version > 3.5.0 and 128GB of RAM.  If not already present, required R packages can be installed as follows:
 
@@ -56,6 +58,8 @@ install.packages(c("devtools",
                    "irlba",
                    "dplyr",
                    "foreach",
+                   "doParallel"
+                   "dendextend"
                    "Matrix",
                    "reshape2",
                    "ggplot2",
@@ -67,7 +71,9 @@ install.packages(c("devtools",
                    "survival",
                    "DOSE",
                    "clusterProfiler",
-                   "pheatmap"))
+                   "pheatmap",
+                   "org.Hs.eg.db",
+                   "stringr"))
 
 devtools::install_github("immunogenomics/harmony")
 devtools::install_github("jlmelville/uwot")
@@ -77,7 +83,7 @@ devtools::install_github("kassambara/rstatix")
 
 ## Data Pre Processing
 
-The data file `PBMC_merged_filtered.rds` contaings sequencing data that was aligned and converted to UMI counts with the inDrop pipeline.  Barcodes were filtered to retain only cells with at least 500 unique counts.
+The data file `PBMC_merged_filtered_recoded.rds` contaings sequencing data that was aligned and converted to UMI counts with the inDrop pipeline.  Barcodes were filtered to retain only cells with at least 500 unique counts.
 
 As shown below, we then further filtered this dataset to select cells with between 750 and 7500 unique counts in an effort to select true, single cells. We then normalized by library size, scaled by a constant (10000), and log transformed, as follows:
 
@@ -85,7 +91,7 @@ As shown below, we then further filtered this dataset to select cells with betwe
 library(Matrix)
 library(irlba)
 
-dat <- readRDS("Final_Data/PBMC_merged_filtered.rds")
+dat <- readRDS("GEO/PBMC_merged_filtered_recoded.rds")
 
 # filtering, somewhat subjectively, for true, single cells
 cellCounts <- rowSums(dat)
@@ -106,13 +112,18 @@ saveRDS(dat.n, file="Final_Data/PBMC_merged_filtered_normalized.rds")
 
 # pc loadings prior to imputation for comparison later
 dat.raw.pc <- prcomp_irlba(dat.n, n=100)
-rownames(dat.raw.pc$x) <- rownames(dat.m)
+rownames(dat.raw.pc$x) <- rownames(dat.imp)
 saveRDS(dat.raw.pc, file="Final_Data/PBMC_merged_filtered_normalized_pc.rds")
 
 # alra imputation
 dat.n <- readRDS("Final_Data/PBMC_merged_filtered_normalized.rds")
 source("https://raw.githubusercontent.com/KlugerLab/ALRA/master/alra.R")
-dat.imp <- alra(dat.n)[[3]]
+
+# ALRA uses the random SVD for performance reasons.  If we don't set a seed,
+# the results of the imputation will be very nearly but not exactly the same
+# between runs.
+set.seed(1010)
+dat.imp <- alra(dat.n, k=50, q = 40)[[3]]
 rownames(dat.imp) <- rownames(dat.n)
 saveRDS(dat.imp, file="Final_Data/PBMC_merged_filtered_alra.rds")
 
@@ -135,9 +146,9 @@ Next we regress away donor (batch) effect using the Harmony algorithm.
 ```{r}
 library(harmony)
 
-dat.pc <- readRDS("data/PBMC_merged_filtered_alra_pc.rds")
+dat.pc <- readRDS("Final_Data/PBMC_merged_filtered_alra_pc.rds")
 
-# leading number is the library id and each patient was a separate sequencing library
+# patient id is the library id and each patient was a separate sequencing library
 id <- gsub("\\..*", "", rownames(dat.pc$x))
 
 dat.pc.h <- HarmonyMatrix(dat.pc$x, data.frame(id=id), "id", theta = 4)
@@ -191,6 +202,7 @@ Now we need to define the cell type for each cell based on its gene expression. 
 First we define a list structure containig our cell type definitions.  The "gate" field indicates whether the corresponding marker should be expressed (`gate = 1`) or not expressed (`gate = 0`).  If `gate` is > 1, then `(gate - 1)` is used as the threshold, although this was case only applies to erythrocytes since hemolysis results in some HBA1 RNA is most droplets. A table summarizing the resulting cell definitions is provided in Supplemental Table 1. 
 
 ```{r}
+library(foreach)
 
 cellTypeDefs <- list(
   "B Cells" = list(markers = c("CD19", "CD3E"),
@@ -221,9 +233,15 @@ cellTypeDefs <- list(
   "CD8+ Effector T" = list(markers = c("CD3E", "CD4", "CD8A", "CD2", "B3GAT1", "NCAM1"),
                        gate = c(1, 0, 1, 1, 1, 0)),
   
-  "NK T" = list(markers = c("CD3E", "CD19", "NCAM1"),
-                       gate = c(1, 0, 1)),
+  "NKT CD4+" = list(markers = c("CD3E", "CD4", "CD8A", "CD19", "NCAM1"),
+                       gate = c(1, 1, 0, 0, 1)),
 
+  "NKT CD8+" = list(markers = c("CD3E", "CD4", "CD8A", "CD19", "NCAM1"),
+                       gate = c(1, 0, 1, 0, 1)),
+
+  "NKT CD4- CD8-" = list(markers = c("CD3E", "CD4", "CD8A", "CD19", "NCAM1"),
+                       gate = c(1, 0, 0, 0, 1)),
+  
   "NK" = list(markers = c("CD3E", "CD19", "NCAM1"),
                        gate = c(0, 0, 1)),
   
@@ -266,7 +284,7 @@ types[ which(is.na(types)) ] <- "Unknown"
 
 ```
 
-Note that the cell type definitions we have specified successfully assigns > 83% of cells to a single cell type, with less than 3% of cells assigned to more than one cell type (these abmiguous cell type assignments are removed).  Some of the remaining ~17% of cells may be unassigned due to technical drop outs, while the others may be cell types we did not defined such as granulocytes that were not successfully removed by the ficoll gradient isolation of PBMCs, circulating epithelial cells, etc. Some may also represent empty droplets containing just background RNA from lysed cells that made it past our data filtering step.
+Note that the cell type definitions we have specified successfully assigns > 81% of cells to a single cell type, with less than 3% of cells assigned to more than one cell type (these abmiguous cell type assignments are removed).  Some of the remaining ~17% of cells may be unassigned due to technical drop outs, while the others may be cell types we did not defined such as granulocytes that were not successfully removed by the ficoll gradient isolation of PBMCs, circulating epithelial cells, etc. Some may also represent empty droplets containing just background RNA from lysed cells that made it past our data filtering step.
 
 For figures legends and other plots, we want the cell types to be in a specific order that is consistent and intuitive.  So we define a function to set the order of the cell type labels for any given list of cell types. We also want the cell types to have consistent colors accross figures where applicable, so we create a helper function for that too.
 
@@ -280,7 +298,9 @@ cellTypes <- c('B Cells',
                 'CD8+ Naive T',
                 'CD8+ Memory T', 
                 'CD8+ Effector T', 
-                'NK T', 
+                "NKT CD4+",
+                "NKT CD8+",
+                "NKT CD4- CD8-",
                 'NK', 
                 'CD16- Monocytes', 
                 'CD16+ Monocytes', 
@@ -295,15 +315,37 @@ fixOrder <- function(x) {
 
 getCellPallette <- function(x) {
   x <- factor(x)
-  cols<-c('forestgreen', 'red2', 'orange', 'cornflowerblue', 
-                'magenta', 'darkolivegreen4',  
-                'indianred1', 'tan4', 'darkblue', 
-                'mediumorchid1','firebrick4',  'yellowgreen', 'lightsalmon', 'tan3', "grey")
+  cols<-c('forestgreen', 
+          'chartreuse', 
+          'darkolivegreen4',  
+          'green', 
+          'darkturquoise', 
+          'cornflowerblue', 
+          'darkblue', 
+          'deepskyblue4',
+          'yellow2',
+          'goldenrod3',
+          'chocolate2',
+          'indianred1', 
+          'firebrick4',  
+          'magenta', 
+          'lightsalmon', 
+          'red2', 
+          "grey")
   ix <- match(levels(x), cellTypes)
   return(cols[ix])
 }
 
+  # cols<-c('forestgreen', 'red2', 'orange', 'cornflowerblue', 
+  #         'magenta', 'darkolivegreen4',  
+  #         'indianred1', 'tan4', 'darkblue', 
+  #         'mediumorchid1','firebrick4',  'yellowgreen', 'lightsalmon', 'tan3',
+  #         "tan1",'darkgray', 'wheat4', '#DDAD4B', 'chartreuse', 'seagreen1',
+  #         'moccasin', 'mediumvioletred', 'seagreen','cadetblue1',
+  #         "darkolivegreen1" ,"tan2" ,   "tomato3" , "#7CE3D8","gainsboro")
+
 types <- fixOrder(types)
+saveRDS(types, "Final_Data/cell_types.rds")
 ```
 
 ## Figure 1
@@ -316,7 +358,9 @@ With the data processed as above, we are ready to generate the 9 panels of figur
 
 
 ```{r}
-my_theme <- theme(
+library(ggplot2)
+
+my_theme <- theme_bw() + theme(
   strip.background = element_blank(),
   strip.text = element_text(face = "bold", margin = margin(0,0,5,0), size=10),
   panel.spacing = unit(1, "lines"),
@@ -335,6 +379,13 @@ my_theme_wide_lab <- theme(
   axis.title.y = element_text(face = "bold", margin = margin(t = 0, r = 10, b = 0, l = 0))
 )
 
+my_theme_no_labs <- my_theme + theme(axis.title = element_text(size=0))
+
+my_theme_no_space <- my_theme + theme(plot.margin=unit(c(0,0,0,0),"cm"))
+
+my_theme_wider_lab <- theme(
+  axis.title.y = element_text(face = "bold", margin = margin(t = 0, r = 20, b = 0, l = 0))
+)
 plotUmap <- function(p1, p2, color, label, palette, legend.position = "none") {
   dat <- melt(data.frame(UMAP1 = p1, UMAP2 = p2, color=color),
               id.vars = c("UMAP1", "UMAP2", "color"))
@@ -343,8 +394,8 @@ plotUmap <- function(p1, p2, color, label, palette, legend.position = "none") {
     annotate("text", x = -10, y = -15, size=3, hjust=0, label = label) +
     theme_bw()  +
     my_theme +
-    ylim(c(-15,10)) + 
-    xlim(c(-15,10)) + 
+   ylim(c(-15,15)) +
+   xlim(c(-15,15)) +
     scale_color_manual(values=palette) +
     theme(legend.position = legend.position)
   
@@ -354,7 +405,10 @@ plotUmap <- function(p1, p2, color, label, palette, legend.position = "none") {
 Here we used the UMAP coordinates calculated above together with the assigned cell types and publically available metadata to generate the nine panels of figure 2. Note that we keep the x and y axis ranges fixed, and a few cells fall outside of this range resulting in warnings about missing values.
 
 ```{r}
+library(reshape2)
+library(cowplot)
 
+types <- readRDS("Final_Data/cell_types.rds")
 md <- readRDS("Final_Data/metadata.rds")
 
 # types is the type of each cell, defined above
@@ -407,6 +461,8 @@ dev.off()
 Figure 3 provided further detail about the scRNAseq classifiation of cells.  Panel A breaks out each individual cell type to better visualize their clustering (based on the harmony corrected PC loadings).
 
 ```{r}
+umap <- readRDS("Final_Data/PBMC_merged_filtered_alra_pc_harmony_umap.rds")
+types <- readRDS("Final_Data/cell_types.rds")
 
 fig3a <- function() {
   data <- data.frame(UMAP1 = umap$UMAP1, UMAP2 = umap$UMAP2, id = umap$id, type = types)
@@ -424,12 +480,19 @@ fig3a <- function() {
     theme(legend.position = 'none')
 }
 
+F3A <- fig3a()
+
 ```
 
 Panel B shows the expression of key surface markers in the cell clusters.
 
 ```{r}
+
+types <- readRDS("Final_Data/cell_types.rds")
+
 fig3b <- function() {
+  data <- readRDS("Final_Data/PBMC_merged_filtered_alra_pc_harmony_umap.rds")
+  data$type <- types
   data$CD19 <- dat.imp[ , 'CD19']
   data$'CD3' <- dat.imp[ , 'CD3E']
   data$'CD4' <- dat.imp[ , 'CD34']
@@ -444,21 +507,24 @@ fig3b <- function() {
   
   ggplot(data_m, aes(x=UMAP2, y=UMAP1, color=value)) +
     geom_point(size=0.5, stroke=0) +
-    scale_color_gradientn(colors = c("#00348E00", "cyan", "yellow", "orange", "red"), name = "Log Counts") +
+    scale_color_gradientn(colors = c("#00348E00", "cyan", "yellow", "orange", "red"), name = "Norm Counts") +
     facet_wrap(~variable, nrow = 2) +
     theme_bw() +
     my_theme
 }
+
+F3B <- fig3b()
 ```
 
 To validate our scRNASeq analysis, we also performed FACS analysis on the same samples to directly measure the surface marker expression of major lymphocyte population markers.  The percentages of the lymphocyte gate comprised of each subtype as determined by FACS are included in the metadata file. Proportion of lymphocytes in each population as assigned by FACS vs. scRNASeq is compared in Panel C.
 
 ```{r}
+library(ggpubr)
 
 fig3c <- function() {
   # accumulate all our cell counts per sample, dropping non-lymphocytes
   ids <- gsub("\\..*", "", rownames(dat.imp))
-  sc.counts <- as.data.frame.matrix(table(ids, types))[ , -c(11:13)]
+  sc.counts <- as.data.frame.matrix(table(ids, types))[ , -c(16:17)]
   
   # aggregate some sub-populations to match flow populations
   sc.counts$`T Cells` <- sc.counts$`CD4+ Naive T` +
@@ -468,15 +534,19 @@ fig3c <- function() {
                          sc.counts$`CD8+ Naive T` + 
                          sc.counts$`CD8+ Memory T` + 
                          sc.counts$`CD8+ Effector T` + 
-                         sc.counts$`NK T`
+                         sc.counts$`NKT CD4+` +
+                         sc.counts$`NKT CD8+` +
+                         sc.counts$`NKT CD4- CD8-`
   sc.counts$`CD4+ T Cells` <- sc.counts$`CD4+ Naive T` +
                          sc.counts$`CD4+ Memory T` +
                          sc.counts$`CD4+ Effector T` +
-                         sc.counts$`CD4+ Reg T`
+                         sc.counts$`CD4+ Reg T` +
+                         sc.counts$`NKT CD4+` 
   
   sc.counts$`CD8+ T Cells` <- sc.counts$`CD8+ Naive T` + 
                          sc.counts$`CD8+ Memory T` + 
-                         sc.counts$`CD8+ Effector T`
+                         sc.counts$`CD8+ Effector T` +
+                         sc.counts$`NKT CD8+` 
   
   # and convert to % of lymphocytes
   sc.lymphs <- table(grepl("CD4", types) | 
@@ -486,9 +556,10 @@ fig3c <- function() {
   
   sc.props <- sweep(sc.counts, 1, sc.lymphs, "/")
   sc.props <- as.data.frame.matrix(sc.props)  
+  sc.props <- sc.props[match(md$id, rownames(sc.props)),]
   
   # sanity check
-  all.equal(md$id, rownames(sc.props))
+  all.equal(as.character(md$id), rownames(sc.props))
   
   # extract the populations we are interested in 
   sc <- data.frame("B Cells" = sc.props$`B Cells`)
@@ -502,18 +573,13 @@ fig3c <- function() {
   flow$`T Cells` <- md$`T Cells`
     
   sc$`CD4+ T Cells` <- sc.props$`CD4+ T Cells`
-  flow$`CD4 + T Cells` <- md$`CD4+ T Cells`
+  flow$`CD4+ T Cells` <- md$`CD4+ T Cells`
 
   sc$`CD8+ T Cells` <- sc.props$`CD8+ T Cells`
-  flow$`CD8 + T Cells` <- md$`CD8+ T Cells`  
+  flow$`CD8+ T Cells` <- md$`CD8+ T Cells`  
 
   sc$`NK Cells` <- sc.props$NK
   flow$`NK Cells` <- md$`NK Cells` 
-  
-  md$`T Cells` <- pd$CD3..T.cells / 100
-  md$`CD4+ T Cells` <- pd$CD4..T.cells / 100
-  md$`CD8+ T Cells` <- pd$CD8.T.cells / 100
-  md$`NK Cells` <- pd$CD3..CD19..Total.NK.cells / 100
   
   # assemble, melt, and plot
   flow$ID <- md$id
@@ -538,20 +604,19 @@ fig3c <- function() {
       legend.position = "none"
     )
 }
+
+F3C <- fig3c()
 ```
 
 And figure 3 can then be assembled
 
 ```{r}
 
-a <- fig3a()
-b <- fig3b()
-c <- fig3c()
 png("Final_Data/fig3.png", height=3400, width=1500, type = "cairo", res = 220)
-p <- plot_grid(a + theme(legend.position="none", 
+p <- plot_grid(F3A + theme(legend.position="none", 
                          plot.margin=unit(c(1,2,1,.5),"cm")), 
-               b + theme(plot.margin=unit(c(1,0,1,.5),"cm")), 
-               c + theme(plot.margin=unit(c(1,2,1,.5),"cm")) + my_theme_wide_lab,  
+               F3B + theme(plot.margin=unit(c(1,0,1,.5),"cm")), 
+               F3C + theme(plot.margin=unit(c(1,2,1,.5),"cm")) + my_theme_wide_lab,  
                #rel_widths = c(4,1.2,4,1.2), 
                label_size = 18,
                nrow = 3,
@@ -569,21 +634,27 @@ dev.off()
 Panel A of figure 4 displays the proportion of cells in each subtype for each patient, stratified by surviving vs. non-surviving patients. 
 
 ```{r}
+library(reshape2)
+library(rstatix)
+library(ggpubr)
+dat.imp <- readRDS("Final_Data/PBMC_merged_filtered_alra.rds")
+md <- readRDS("Final_Data/metadata.rds")
 fig4a <- function() {
   ids <- gsub("\\..*", "", rownames(dat.imp))
   
   # cell counts per patient, dropping unknown cells
   # and erythrocytes
-  sc.counts <- as.data.frame.matrix(table(ids, types))[ , -c(14:15)]
+  sc.counts <- as.data.frame.matrix(table(ids, types))[ , -c(16:17)]
 
   # now convert to proportion of total cells
   totals <- apply(sc.counts, 1, sum)
   sc.counts.p <- sweep(sc.counts, 1, totals, "/")
   
-  # sanity check
-  all.equal(rownames(sc.counts.p), md$id)
 
-  ix <- match(rownames(sc.counts.p), md$id)
+  ix <- match(rownames(sc.counts.p), as.character(md$id))
+  # sanity check
+  all.equal(rownames(sc.counts.p), as.character(md$id)[ix])
+
   sc.counts.p$Survival <- md$mort_30d[ix]
   sc.counts.p$ID <- md$id[ix]
   
@@ -620,9 +691,10 @@ fig4a <- function() {
     theme(legend.position = "none") 
 }
 
+F4A <- fig4a()
 ```
 
-As none of the major cell types seemed predictive of survival, we wanted to drill into each cell type and find biological processes and surface markers that might distinguish surviving vs. non-surviving patients.  Panel B displays the results of this analysis. For identification of differentially expressed genes and associated biological processes, we limited our analysis to those genes that had variable expression defined as having an expression level normalized robust z-score greater than 2. This approach is the same as that described in Zheng et al. and ____ et al.  
+As none of the major cell types seemed predictive of survival, we wanted to drill into each cell type and find biological processes and surface markers that might distinguish surviving vs. non-surviving patients.  Panel B displays the results of this analysis. For identification of differentially expressed genes and associated biological processes, we limited our analysis to those genes that had variable expression defined as having an expression level normalized robust z-score greater than 2. This approach is the same as that described in Zheng et al. (2017) and Macosko, et al. (2015).  
 
 Here is the function we used to calculate the dispersion for each gene:
 
@@ -649,6 +721,9 @@ dispersion <- function(x, dim=2, verbose=FALSE) {
 We then used this function to identify the variable gene set based on cells of known type (as defined above) that were not erythrocytes.
 
 ```{r}
+
+types <- readRDS("Final_Data/cell_types.rds")
+
 ix <- which(!types %in% c("Erythrocytes", "Unknown"))
 dat <- dat.imp[ix,]
 disp <- dispersion(dat)
@@ -666,11 +741,14 @@ expGenes <- function(x) {
 gg <- expGenes(gg)
 ix <- which(colnames(dat) %in% gg)
 dat <- dat[,ix]
+saveRDS(dat, file = "Final_Data/PBMC_merged_filtered_alra_variable_genes.rds")
 ```
 
 Now we need helper functions to calculate the proportion of cells within each subtype that express each gene for each patient.
 
 ```{r}
+
+library(doParallel)
 
 applyById <- function(x, ids, FUN=function(x) { sum(x>0) }) {
   ids.x <- gsub("\\..*", "", names(x))
@@ -703,7 +781,7 @@ R_na_zero <- function(x) {
 }
 
 
-genesProp <- function(types, dat) {
+genesProp <- function(types, dat, cluster=TRUE) {
   calcRatio <- function(x, ix.s, ix.d, ids.s, ids.d) {
     pos.s <- positiveById(x[ix.s], ids.s)
     tot.s <- countsById(x[ix.s], ids.s)
@@ -730,8 +808,15 @@ genesProp <- function(types, dat) {
   ix <- match(ids, md$id)
   survival <- md$mort_72h[ix]
   
-  ratios <- foreach(t = levels(types)) %do% {
-    print(t)
+  if(cluster) {
+    cl <- makeCluster(detectCores() - 1)
+    registerDoParallel(cl)
+  }
+  
+  ratios <- foreach(t = levels(types), .packages = c("dplyr", "foreach"), .export = c("applyById", 
+                                                   "positiveById", 
+                                                   "countsById", 
+                                                   "R_na_zero")) %dopar% {
     ix.type <- which(types == t)
     dat.type <- dat[ix.type, ]
     ix.s <- which(survival[ix.type] == "Survived")
@@ -744,23 +829,30 @@ genesProp <- function(types, dat) {
     rv$gene <- colnames(dat)
     rv
   }
+  if(cluster) {
+    stopCluster(cl)
+  }
   names(ratios) <- levels(types)
   ratios
 }
 
+types <- readRDS("Final_Data/cell_types.rds")
 types.p <- factor(types[which(!types %in% c("Erythrocytes", "Unknown"))])
+dat <- readRDS("Final_Data/PBMC_merged_filtered_alra_variable_genes.rds")
 props <- genesProp(types.p, dat)
 names(props) <- levels(types.p)
-
+saveRDS(props, file="Final_Data/gene_props.rds")
 
 ```
 
 We can then plot a heatmap of the gene proportions.  Red genes are those expressed in a higher proportion of cells from deceased  patients, while blue genes are those expressed in a higher proportion of cells from surviving patients.  The intensity of the color is proportional to the adjusted (FDR) p-value (t-test) for each gene (within each subtype).
 
 ```{r}
-
+library(pheatmap)
+library(ggplotify)
+library(cowplot)
 fig4b_1 <- function() {
-  
+  props <- readRDS("Final_Data/gene_props.rds")
   # take 1 - adjusted pvalue (so the most significant genes are the 
   # extremes of the scale), and set sign to the direction of the 
   # fold change.
@@ -776,9 +868,6 @@ fig4b_1 <- function() {
   ix.rm <- which(apply(pv,1,sum)==0)
   pv <- pv[-ix.rm,]
   
-  # save this object to speed up further analysis
-  saveRDS(pv, "data/gene_proportions_by_type_adjp.rds")
-  
   hm <- pheatmap(pv, silent=TRUE, legend=FALSE,
                 cluster_cols = FALSE,
                 border_color = NA,
@@ -788,92 +877,62 @@ fig4b_1 <- function() {
                 treeheight_col = 10, 
                 treeheight_row = 30)
 
+  # save the dendrogram for further analysis below
+  dg <- rev(as.dendrogram(hm$tree_row))
+  saveRDS(dg, file="Final_Data/gene_prop_dendrogram.rds")
+
   # grab the legend
   hm.leg <- pheatmap(pv, 
-                     silent=TRUE, breaks = c(seq(-1,1,0.2)),
+                     silent=TRUE, breaks = c(seq(-1,1,0.2)), 
                      legend_breaks = seq(-.8,.8,.2),
                      legend=TRUE,
                      color = colorRampPalette(c("#005AC8", "white", "#FA2800"))(11))$gtable$grobs[[6]]  
 
+  hm.leg <- as.ggplot(hm.leg) + theme(plot.margin = unit(c(1,0,0,0), "cm"))
   hm.g <- as.ggplot(hm)
   
-  # need to leave some room for some manual annotation of pathways
+  
   plot_grid(hm.leg, 
-            hm.g + theme(plot.margin = unit(c(0.5,4,0,0), "cm")), 
+            hm.g + theme(plot.margin = unit(c(0.5,-0.2,0,0), "cm")), 
             ncol=2, 
-            labels=c(" ", "Surface Markers"), 
+            labels=c(" ", "Variable Genes"), 
             label_size = 10,
-            rel_widths=c(0.3, 1.8))
+            rel_widths=c(0.4, 1.8))
 }
+
+F4B1_pre <- fig4b_1()
 ```
 
-In order to facilitate future isolation of interesting cell subpopulations by FACS, we would also like 
-to focus in on surface markers specifically. We obtained a list of known clusters of differentiations, 
-and their alternative gene symbols (if any) from the [Cell Surface Protein Atlas](http://wlab.ethz.ch/cspa/) 
-and used this to filter our gene list.  The resulting list of genes is available as table_s4.txt 
-from our manuscript.
+In an effort to functionalize the gene clusters, we performed Gene Ontology term enrichment 
+analysis on the genes in each 
+of the major subclusters. We create a helper function that accepts 
+a dendrogram, and the index of a subtree, and then runs GO enrichment analysis on the genes in 
+that subtree. The function also optionally plots the subtree so you can visually verify that you 
+know which subtree is being analyzed by cross referencing to the whole dendrogram.
 
 ```{r}
 
-cds <- read.delim("Final_Data/table_s4.txt", as.is=TRUE, header=TRUE)
-cd.ix <- which(colnames(dat) %in% cds$Gene_Symbol)
-ix.c <- which(rownames(dat.imp) %in% rownames(dat))
-props_cd <- genesProp(types.p, dat.imp[ix.c , ix.cd])
-names(props_cd) <- levels(types)
+library(dendextend)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(stringr)
 
-fig4b_2 <- function()  {
-  pv <- foreach(d=props, .combine=cbind) %do% {
-    (1 - d$p.adj) * sign(d$logratio)
-  }
-  colnames(pv) <- levels(types)
-  
-  pv[which(is.na(pv))] <- 0
-  pv <- as.data.frame(pv)
-  hm <- pheatmap(pv, silent=TRUE, legend=FALSE,
-           cluster_cols = FALSE, breaks = c(seq(-1,1,0.2)),
-           cluster_rows = TRUE, border_color = NA,
-           show_rownames = FALSE, 
-           color = colorRampPalette(c("#005AC8", "white", "#FA2800"))(11), 
-           treeheight_col = 10, 
-           treeheight_row = 20)
-  hm.cd <- as.ggplot(hm)
-  plot_grid(hm.g + theme(plot.margin = unit(c(0.5,4,0,0), "cm")), 
-            hm.cd + theme(plot.margin = unit(c(0.5,0,0,0), "cm")), 
-            hm.leg, 
-            ncol=3, 
-            labels=c("Variable Genes", "Surface Markers"), 
-            label_size = 10,
-            rel_widths=c(1.8, 1, 0.3))
-  
-
+# get 1:1 mapping of gene symbol to entrez gene, dropping NAs
+symToEG <- function(x) {
+  x <- x[which(x %in% ls(org.Hs.egSYMBOL2EG))]
+  x <- mget(x, org.Hs.egSYMBOL2EG)
+  unlist(lapply(x, function(i) { i[1]}))
 }
 
-```
-
-
-```{r}
-
-
-  saveRDS(pv, "data/gene_proportions_by_type_adjp.rds")
-
-  p <- pheatmap(pv, cluster_cols = FALSE, show_rownames = FALSE,
-                     silent=TRUE, breaks = c(seq(-1,1,0.2)),
-                     legend_breaks = seq(-.8,.8,.2),
-                     legend=TRUE,
-                     color = colorRampPalette(c("#005AC8", "white", "#FA2800"))(10))
-  
-  p.dc <- rev(as.dendrogram(p$tree_row))
-  gts <- foreach(i = 1:20) %do% {
-    print(i)
-    dendGo(p.dc, 20, i, heatmap=FALSE, go=TRUE)
-  }
-  
-dendGo <- function(dend, k, i, heatmap=TRUE, go=TRUE, exp=NULL) {
+# k is the number of subtrees to cut the dendrogram into, i is the 
+# subtree of interest. If heatmap=TRUE, exp must be supplied (the 
+# full data matrix originally used for clustering)
+dendGo <- function(dend, k, i, heatmap=FALSE, go=TRUE, exp=NULL) {
   gt <- NULL
-  clusters <- cutree(dend, k)
+  clusters <- dendextend::cutree(dend, k)
   genes <- labels(dend)
   labels(dend) <- clusters[order.dendrogram(dend)]
-  ix <- which(clusters==i)
+  ix <- which(clusters[order.dendrogram(dend)]==i)
   labels(dend) <- genes
   gg <- labels(dend)[ix]
   if(heatmap) {
@@ -893,7 +952,7 @@ dendGo <- function(dend, k, i, heatmap=TRUE, go=TRUE, exp=NULL) {
   }
   if(go) {
     go_test <- enrichGO(symToEG(gg), OrgDb='org.Hs.eg.db', pvalueCutoff = 0.05)
-    go_test@result$Description <- str_trunc(go_test@result$Description, width = 40)
+    go_test@result$Description <- go_test@result$Description
     gt <- go_test
     #return(dotplot(go_test, font.size=10) + scale_size_continuous(range = c(1, 6)))
   }
@@ -901,14 +960,304 @@ dendGo <- function(dend, k, i, heatmap=TRUE, go=TRUE, exp=NULL) {
 }
 ```
 
-## Work area (delete me)
+We then step through each of 12 (mutually exclusive, but exhaustive) subtrees and test for enriched GO terms.
+Although the number of subtrees is arbitrary, the identification of subtrees once the number is chosen is 
+systematic and automated, performed using Tal Galili's `dendextend` package.
+
+```{r}
+library(dendextend)
+library(doParallel)
+
+dg <- readRDS(file="Final_Data/gene_prop_dendrogram.rds")
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
+
+go_enrich <- foreach(i = 1:12, .packages = c("dendextend", "clusterProfiler", "stringr")) %dopar% {
+  dendGo(dg, 12, i)
+}
+
+stopCluster(cl)
+saveRDS(go_enrich, "Final_Data/go_enrichment.rds")
+```
+
+It would be helpful to create an annotation bar that will indicate where exactly the sub 
+trees are, and to label these bars with any significantly enriched GO terms.  Because 
+space is limited, a maximum of 2 terms are annotated on the plot, and terms are truncated 
+for length as needed.  
+
+```{r}
+topTerms <- function(enr, n=3, strlen = 40) {
+  termlist <- foreach(i = 1:length(enr)) %do% {
+    r <- enr[[i]]@result
+
+    # truncate and remove duplicate terms that are identical after truncation
+    r$Description <- str_trunc(r$Description, strlen)
+    ix.rm <- which(duplicated(r$Description))
+    r <- r[-ix.rm,]
+    ix <- which(r$p.adjust < 0.05)
+    if(length(ix)) {
+      if(length(ix) > n) {
+        terms <- r$Description[ix][1:n]
+      } else {
+        terms <- r$Description[ix]
+      }
+    } else {
+      terms <- ""
+    }
+    terms
+  }
+  termlist
+}
+
+dendnote <- function(dend, 
+                     k,
+                     offset = 0.125,
+                     cols=c("gray", "black"), 
+                     reverse=TRUE, 
+                     sort.labels=FALSE,
+                     enr = NULL) {
+  if(reverse) {
+    dend <- rev(dend)
+  }
+  order <- order.dendrogram(dend)
+  clusters <- cutree(dend, k)
+  levels <- unique(clusters[order])
+  dn <- data.frame(labels=unique(clusters[order]))
+  if(length(enr)) {
+    dn$label = sapply(topTerms(enr, 2)[levels], paste, collapse="\n")
+  } else {
+    dn$label = ""
+  }
+  if(sort.labels) {
+    dn$id <- sort(levels, decreasing=TRUE)
+  } else {
+    dn$id <- levels
+  }
+  dn$at <- which(!duplicated(clusters[order]))
+  dn$length <- as.vector(table(clusters[order])[levels])
+  dn$at_ann <- dn$at + dn$length
+  dn$at <- dn$at + 0.5 * dn$length
+  dn$col <- cols
+  dn$offset <- c(0,offset)
+  ggplot(dn, aes(x=1+offset, y=at, height=length, fill=col, label=id)) + 
+    geom_tile(width=0.25) + 
+    geom_text(aes(x=2, col=col), size=3.5) +
+    geom_text(aes(x=3, y = at, label=label, col=col), lineheight=0.8, size=2.5, hjust=0, vjust=0.5) +
+    scale_fill_manual(values = cols) + 
+    scale_color_manual(values = cols) + 
+    coord_cartesian(xlim = c(0, 8),
+                    clip = 'off') +
+    theme(axis.line=element_blank(),
+          axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),legend.position="none",
+          panel.background=element_blank(),panel.border=element_blank(),panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),plot.background=element_blank())
+  
+}
+```
+
+We can then add the annotation bar to our heatmap.
+
+```{r}
+dg <- readRDS(file="Final_Data/gene_prop_dendrogram.rds")
+go_enrich <- readRDS("Final_Data/go_enrichment.rds")
+
+# fig4b panel 1 with GO annotation
+fig4b_1_ann <- function() {
+  plot_grid(F4B1_pre, 
+            dendnote(dg, 
+                     12, 
+                     reverse=FALSE, 
+                     sort.labels = TRUE, 
+                     enr = go_enrich, 
+                     cols = c("black", "#006666")) + 
+            theme(plot.margin=margin(-0.1,2,2.25,-0.4,"cm")), 
+            rel_widths = c(1.2, 1))
+} 
+F4B1 <- fig4b_1_ann()
+```
+
+We did not have room in the figure to display every significant GO term.  But of course, we want 
+to report them, and we do so in supplemental table S4. For figure 4 in the manuscript, we wanted the 
+node ids to be in numerical order, top to bottom.  But this is not the way `cutree` numbers the 
+subtrees (it numbers them hierachically as it encounters them). Below we create a table of 
+significant GO terms with both the original node id as assigned by `cutree` and the node id as presented in 
+the figure.
 
 ```{r}
 
+go_enrich <- readRDS("Final_Data/go_enrichment.rds")
+dg <- readRDS(file="Final_Data/gene_prop_dendrogram.rds")
+clusters <- cutree(dg, 12)
+order <- order.dendrogram(dg)
+pub_id <- match(c(1:12), rev(unique(clusters[order])))
 
-pd <- readRDS("data/ecmo_clinical_38.rds")
-md <- data.frame(mort_72h <- pd$days.to.death > 0 & pd$days.to.death < 4)
-md$id <- pd$id
-md$mort_30d <- pd$days.to.death > 0 & pd$days.to.death < 31
-saveRDS(md, "Final_Data/metadata.rds")
+res <- NULL
+for(i in 1:length(go_enrich)) {
+  r <- go_enrich[[i]]@result
+  ix <- which(r$p.adjust < 0.05)
+  if(length(ix)) {
+    res <- rbind(res, cbind(pub_id[i], i, r$Description[ix], r$p.adjust[ix]))
+  }
+}
+colnames(res) <- c("Node_ID_pub", "Node_ID_orig", "GO_Term", "adj_p")
+write.table(res, quote=FALSE, row.names=FALSE, sep="\t", file="Final_Data/table_s4.tab")
 ```
+
+
+In order to facilitate future isolation of interesting cell subpopulations by FACS, we would also like 
+to focus in on surface markers specifically. We obtained a list of known clusters of differentiations, 
+and their alternative gene symbols (if any) from the [Cell Surface Protein Atlas](http://wlab.ethz.ch/cspa/) 
+and used this to filter our gene list.  The resulting list of genes is presented as Supplemental Table S5 
+in our manuscript, and is also available as `Final_Data/table_s5.txt` in the github repository.
+
+```{r}
+
+types <- readRDS("Final_Data/cell_types.rds")
+types.p <- factor(types[which(!types %in% c("Erythrocytes", "Unknown"))])
+dat <- readRDS("Final_Data/PBMC_merged_filtered_alra_variable_genes.rds")
+cds <- read.delim("Final_Data/table_s5.txt", as.is=TRUE, header=TRUE)
+
+ix.cd <- which(colnames(dat) %in% cds$Gene_Symbol | grepl("^CD\\d", colnames(dat)))
+props_cd <- genesProp(types.p, dat[, ix.cd])
+names(props_cd) <- levels(types.p)
+saveRDS(props_cd, file="Final_Data/cd_props.rds")
+
+```
+
+We can then plot this heatmap as well
+
+```{r}
+
+types <- readRDS("Final_Data/cell_types.rds")
+types.p <- factor(types[which(!types %in% c("Erythrocytes", "Unknown"))])
+props_cd <- readRDS(file="Final_Data/cd_props.rds")
+
+fig4b_2 <- function()  {
+  pv <- foreach(d=props_cd, .combine=cbind) %do% {
+    (1 - d$p.adj) * sign(d$logratio)
+  }
+  colnames(pv) <- levels(types.p)
+  
+  pv[which(is.na(pv))] <- 0
+  pv <- as.data.frame(pv)
+  hm <- pheatmap(pv, silent=TRUE, legend=FALSE,
+           cluster_cols = FALSE, breaks = c(seq(-1,1,0.2)),
+           cluster_rows = TRUE, border_color = NA,
+           show_rownames = FALSE, 
+           color = colorRampPalette(c("#005AC8", "white", "#FA2800"))(11), 
+           treeheight_col = 10, 
+           treeheight_row = 20)
+  hm <- as.ggplot(hm)
+  plot_grid(hm + theme(plot.margin = unit(c(0.5,-0.2,0,0), "cm")), 
+            ncol=1, 
+            labels=c("Surface markers"), 
+            label_size = 10)
+}
+F4B2 <- fig4b_2()
+F4B <- plot_grid(F4B1, F4B2, labels=c("B", ""), ncol=2, rel_widths = c(1, 0.4))
+```
+
+We are most interested in those surface markers that exhibited a strong fold in proportion of positive cells between surviving and non-surviving patients and that have a p-value corresponding to a relatively low false discovery rate.  For our purposes, we will screen for surface markers with a fold change of at least 1.5 (in either direction) and an FDR < 20%.  Surface markers meeting these requirements were identified for the CD8+ Naive T Cells and CD8+ NKT cells.  The corresponding candidate markers are provided in supplemental table S6 in the manuscript.
+
+Finally, we would like to perform survival analysis based on the novel markers we have selected.  Here we create a helper function to perform the analysis and plot the results.
+
+```{r}
+library(survival)
+survAnalysis <- function(cellp, 
+                         cutoff = NULL, 
+                         days = 3,
+                         pop.name = "Positive cells / total lymphs:") {
+  md <- readRDS("Final_Data/metadata.rds")
+  md <- md[which(md$id %in% names(cellp)), ]
+  ix <- match(md$id, names(cellp))
+  md$cellp <- cellp[ix]
+  if(days == 3) {
+    md$surv_time[which(md$surv_time > 3)] <- 3
+    surv <- Surv(time = md$surv_time, event = md$mort_72h == "Died")
+  } else {
+    md$surv_time[which(md$surv_time > 30)] <- 30
+    surv <- Surv(time = md$surv_time, event = md$mort_30d == "Died")
+  }
+  if(is.null(cutoff)) {
+    cutoff <- median(cellp)
+  }
+  md$surv <- surv
+  md$high_count <- factor(md$cellp > cutoff, labels=c("High", "Low"))
+  fit<-coxph(surv ~ high_count, data=md)
+  ggsurvplot(survfit(surv ~ high_count, data=md), 
+             color = "black", 
+             ggtheme = my_theme_no_labs + 
+                       my_theme_no_space + 
+                       theme(legend.title = element_text(size=10, face="bold"),
+                             legend.text = element_text(size=10)), 
+             data=md, 
+             pval=TRUE,
+             pval.coord = c(0.6*days, 0.1),
+             pval.size = 3.5,
+             linetype = "strata",
+             risk.table = FALSE,
+             legend.title = pop.name,
+             legend.labs = c("Low", "High") )
+}
+
+
+```
+
+```{r}
+library("rstatix")  # https://github.com/kassambara/rstatix
+fig4cd <- function() {
+  dat <- readRDS("Final_Data/PBMC_merged_filtered_alra_variable_genes.rds")
+  types <- readRDS("Final_Data/cell_types.rds")
+  types.p <- factor(types[which(!types %in% c("Erythrocytes", "Unknown"))])
+  ids <- gsub("\\..*", "", rownames(dat))
+  pd <- data.frame(ids = ids, type = types.p)
+
+  md <- readRDS("Final_Data/metadata.rds")
+  ix <- match(pd$ids, md$id)
+  pd$Survival <- factor(md$mort_72h[ix], labels=c("Survived", "Died"))
+  pd$CD8NKTCD52 <- dat[ , 'CD52'] > 0 
+  pd$CD8NKTCD3G <- dat[ , 'CD3G'] > 0 
+  pd$CD8NKTDP <- pd$CD8NKTCD3G & pd$CD8NKTCD52 
+  
+  cd8_nkt <- table(pd$id, pd$type)[,"NKT CD8+"]
+  cd8_nkt_cd52 <- table(pd$id,  pd$CD8NKTCD52, pd$type)[, 2, "NKT CD8+"]
+  cd8_nkt_cd3g <- table(pd$id,  pd$CD8NKTCD3G, pd$type)[, 2, "NKT CD8+"]
+  cd8_nkt_dp <- table(pd$id,  pd$CD8NKTDP, pd$type)[, 2, "NKT CD8+"]
+
+  cellp <- cd8_nkt_cd52 / cd8_nkt
+  cellp <- cellp[-which(is.nan(cellp))]
+  p1 <- survAnalysis(cellp, pop.name = "CD8+ NKT/CD52+")[[1]] +
+    my_theme_wide_lab 
+  
+  cellp <- cd8_nkt_cd3g / cd8_nkt
+  cellp <- cellp[-which(is.nan(cellp))]
+  p2 <- survAnalysis(cellp, pop.name = "CD8+ NKT/CD3G")[[1]] +
+    my_theme_wide_lab 
+  
+  p3 <- survAnalysis(cellp, days = 30, pop.name = "CD8+ NKT/CD3G")[[1]] +
+    my_theme_wide_lab 
+  
+  list(p1,p2,p3)
+
+}
+F4CDE <- plot_grid(plotlist = fig4cd(), ncol=3, labels=c("C", "D", "E"))
+```
+
+And we can now assemble figure 4
+```{r}
+fig4<- function() {
+  F4AB <- plot_grid(F4A, F4B, labels=c("A", ""), rel_widths = c(1, 1),  ncol=2)
+  p <- plot_grid(F4AB, F4CDE, nrow=2, rel_heights = c(2,1))
+
+  png("Final_Data/fig4.png", height=2000, width=3000, type = "cairo", res = 200)
+  print(p)
+  dev.off()  
+}
+fig4()
+
+
+```
+
