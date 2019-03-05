@@ -12,7 +12,7 @@ date: "February 20, 2019"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
+knitr::opts_chunk$set(echo = TRUE, eval=TRUE)
 ```
 
 ## Introduction
@@ -87,16 +87,16 @@ The data file `PBMC_merged_filtered_recoded.rds` contaings sequencing data that 
 
 As shown below, we then further filtered this dataset to select cells with between 750 and 7500 unique counts in an effort to select true, single cells. We then normalized by library size, scaled by a constant (10000), and log transformed, as follows:
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 library(Matrix)
 library(irlba)
 
-dat <- readRDS("GEO/PBMC_merged_filtered_recoded.rds")
+dat <- readRDS("Final_Data/PBMC_merged_filtered_recoded.rds")
 
 # filtering, somewhat subjectively, for true, single cells
-cellCounts <- rowSums(dat)
+cellCounts <- Matrix::rowSums(dat)
 dat <- dat[which(cellCounts < 7500 & cellCounts > 750), ]
-geneCounts <- colSums(dat)
+geneCounts <- Matrix::colSums(dat)
 dat <- dat[ , which(geneCounts >= 10)]
 
 # we want cells as row and genes as columns for ALRA
