@@ -232,6 +232,8 @@ install.packages(c(&quot;devtools&quot;,
                    &quot;irlba&quot;,
                    &quot;dplyr&quot;,
                    &quot;foreach&quot;,
+                   &quot;doParallel&quot;
+                   &quot;dendextend&quot;
                    &quot;Matrix&quot;,
                    &quot;reshape2&quot;,
                    &quot;ggplot2&quot;,
@@ -451,10 +453,23 @@ fixOrder &lt;- function(x) {
 
 getCellPallette &lt;- function(x) {
   x &lt;- factor(x)
-  cols&lt;-c('forestgreen', 'chartreuse', 'orange', 'cornflowerblue', 
-                'magenta', 'darkolivegreen4',  
-                'indianred1', 'tan4', 'darkblue', 
-                'mediumorchid1','firebrick4',  'yellowgreen', 'lightsalmon', 'tan3', '#DDAD4B',  'red2', &quot;grey&quot;)
+  cols&lt;-c('forestgreen', 
+          'chartreuse', 
+          'darkolivegreen4',  
+          'green', 
+          'darkturquoise', 
+          'cornflowerblue', 
+          'darkblue', 
+          'deepskyblue4',
+          'yellow2',
+          'goldenrod3',
+          'chocolate2',
+          'indianred1', 
+          'firebrick4',  
+          'magenta', 
+          'lightsalmon', 
+          'red2', 
+          &quot;grey&quot;)
   ix &lt;- match(levels(x), cellTypes)
   return(cols[ix])
 }
@@ -612,7 +627,7 @@ fig3b &lt;- function() {
   
   ggplot(data_m, aes(x=UMAP2, y=UMAP1, color=value)) +
     geom_point(size=0.5, stroke=0) +
-    scale_color_gradientn(colors = c(&quot;#00348E00&quot;, &quot;cyan&quot;, &quot;yellow&quot;, &quot;orange&quot;, &quot;red&quot;), name = &quot;Log Counts&quot;) +
+    scale_color_gradientn(colors = c(&quot;#00348E00&quot;, &quot;cyan&quot;, &quot;yellow&quot;, &quot;orange&quot;, &quot;red&quot;), name = &quot;Norm Counts&quot;) +
     facet_wrap(~variable, nrow = 2) +
     theme_bw() +
     my_theme
@@ -1028,7 +1043,6 @@ cl &lt;- makeCluster(detectCores() - 1)
 registerDoParallel(cl)
 
 go_enrich &lt;- foreach(i = 1:12, .packages = c(&quot;dendextend&quot;, &quot;clusterProfiler&quot;, &quot;stringr&quot;)) %dopar% {
-#go_enrich &lt;- foreach(i = 1:20) %do% {
   dendGo(dg, 12, i)
 }
 
