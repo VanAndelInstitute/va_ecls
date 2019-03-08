@@ -83,6 +83,9 @@ img {
 button.code-folding-btn:focus {
   outline: none;
 }
+summary {
+  display: list-item;
+}
 </style>
 
 
@@ -90,14 +93,74 @@ button.code-folding-btn:focus {
 <div class="container-fluid main-container">
 
 <!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
 <script>
 $(document).ready(function () {
   window.buildTabsets("TOC");
 });
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
 </script>
 
 <!-- code folding -->
-
 
 
 
@@ -225,15 +288,27 @@ div.tocify {
 </div>
 <div id="pre-requisites" class="section level2">
 <h2>Pre-requisites</h2>
+<p>Running the following analysis requires a computer with R version &gt;= 3.5.0 and 128GB of RAM, with <code>pandoc</code> installed (e.g., <code>sudo apt-get instal pandoc</code> if running a debian flavored unix like Ubuntu).</p>
 <p>To run the following analysis, the file <a href="https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE127221&amp;format=file&amp;file=GSE127221%5FPBMC%5Fmerged%5Ffiltered%5Frecoded%2Erds%2Egz"><code>PBMC_merged_filtered_recoded.rds</code></a> must be obtained from the GEO series related to this study (GSE127221). The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as <code>Final_Data/table_s5.txt</code>. The following code assumes these files are within a subdirectory named “Final_Data” underneath the working directory. Note that cloning the github repo will create the necessary directory structure with supporting files. However, <code>PBMC_merged_filtered_recoded.rds</code> is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.</p>
-<p>Running the following analysis requires a computer with R version &gt; 3.5.0 and 128GB of RAM. If not already present, required R packages can be installed as follows:</p>
+<p>For a vanilla R installation, the following steps are the simplest for setting up the environment:</p>
+<pre class="bash"><code>git clone https://github.com/vanandelinstitute/va_ecls
+cd va_ecls/Final_Data
+wget ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz
+gunzip *.gz
+cd ..</code></pre>
+<p>If you are not using Rstudio, the following step (from within an R session) is required to install the rmarkdown tools. If you are using Rstudio, you can skip this.</p>
+<pre class="r"><code>install.packages(&quot;rmarkdown&quot;)
+# the next line will render this documnt, generating all the intermediate data files and figures
+rmarkdown::render(&quot;final_analysis.rds&quot;)</code></pre>
+<p>If you are using Rstudio, just click the Knit button, or run each chunk individually.</p>
+<p>If not already present, required R packages can be installed as follows:</p>
 <pre class="r"><code>setRepositories(ind=c(1,2))
 install.packages(c(&quot;devtools&quot;,
                    &quot;irlba&quot;,
                    &quot;dplyr&quot;,
                    &quot;foreach&quot;,
-                   &quot;doParallel&quot;
-                   &quot;dendextend&quot;
+                   &quot;doParallel&quot;,
+                   &quot;dendextend&quot;,
                    &quot;Matrix&quot;,
                    &quot;reshape2&quot;,
                    &quot;ggplot2&quot;,

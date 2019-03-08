@@ -12,7 +12,7 @@ date: "February 20, 2019"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval=TRUE)
+knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
 ```
 
 ## Introduction
@@ -69,7 +69,7 @@ install.packages("rmarkdown")
 rmarkdown::render("final_analysis.rds")
 ```
 
-If you are usnig Rstudio, just click the Knit button, or run each chunk individually.
+If you are using Rstudio, just click the Knit button, or run each chunk individually.
 
 If not already present, required R packages can be installed as follows:
 
