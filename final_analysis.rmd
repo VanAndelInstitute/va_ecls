@@ -12,7 +12,7 @@ date: "February 20, 2019"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
+knitr::opts_chunk$set(echo = TRUE, eval=TRUE)
 ```
 
 ## Introduction
@@ -47,19 +47,41 @@ Since the processed data elements created below are save as RDS files in the chu
 
 ## Pre-requisites
 
+Running the following analysis requires a computer with R version >= 3.5.0 and 128GB of RAM, with `pandoc` installed (e.g., `sudo apt-get instal pandoc` if running a debian flavored unix like Ubuntu). 
+
 To run the following analysis, the file [`PBMC_merged_filtered_recoded.rds`](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE127221&format=file&file=GSE127221%5FPBMC%5Fmerged%5Ffiltered%5Frecoded%2Erds%2Egz) must be obtained from the GEO series related to this study (GSE127221).  The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as `Final_Data/table_s5.txt`.  The following code assumes these files are within a subdirectory named "Final_Data" underneath the working directory.  Note that cloning the github repo will create the necessary directory structure with supporting files.  However, `PBMC_merged_filtered_recoded.rds` is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.
 
-Running the following analysis requires a computer with R version > 3.5.0 and 128GB of RAM.  If not already present, required R packages can be installed as follows:
+For a vanilla R installation, the following steps are the simplest for setting up the environment:
+
+```bash
+git clone https://github.com/vanandelinstitute/va_ecls
+cd va_ecls/Final_Data
+wget ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz
+gunzip *.gz
+cd ..
+```
+
+If you are not using Rstudio, the following step (from within an R session) is required to install the rmarkdown tools.  If you are using Rstudio, you can skip this.
 
 ```{r, eval=FALSE}
+install.packages("rmarkdown")
+# the next line will render this documnt, generating all the intermediate data files and figures
+rmarkdown::render("final_analysis.rds")
+```
+
+If you are usnig Rstudio, just click the Knit button, or run each chunk individually.
+
+If not already present, required R packages can be installed as follows:
+
+```{r}
 
 setRepositories(ind=c(1,2))
 install.packages(c("devtools",
                    "irlba",
                    "dplyr",
                    "foreach",
-                   "doParallel"
-                   "dendextend"
+                   "doParallel",
+                   "dendextend",
                    "Matrix",
                    "reshape2",
                    "ggplot2",
