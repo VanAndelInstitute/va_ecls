@@ -288,8 +288,13 @@ div.tocify {
 </div>
 <div id="pre-requisites" class="section level2">
 <h2>Pre-requisites</h2>
-<p>Running the following analysis requires a computer with R version &gt;= 3.5.0 and 128GB of RAM, with <code>pandoc</code> installed (e.g., <code>sudo apt-get instal pandoc</code> if running a debian flavored unix like Ubuntu).</p>
-<p>To run the following analysis, the file <a href="https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE127221&amp;format=file&amp;file=GSE127221%5FPBMC%5Fmerged%5Ffiltered%5Frecoded%2Erds%2Egz"><code>PBMC_merged_filtered_recoded.rds</code></a> must be obtained from the GEO series related to this study (GSE127221). The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as <code>Final_Data/table_s5.txt</code>. The following code assumes these files are within a subdirectory named “Final_Data” underneath the working directory. Note that cloning the github repo will create the necessary directory structure with supporting files. However, <code>PBMC_merged_filtered_recoded.rds</code> is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.</p>
+<p>Running the following analysis requires a computer with R version &gt;= 3.5.0 and 128GB of RAM, with <code>pandoc</code>, and development libraries for SSL, XML, and curl installed. This would be achieved on a debian flavored server as follows:</p>
+<pre class="bash"><code>sudo -s
+apt-get instal pandoc
+apt-get install libssl-dev
+apt-get install libcurl4-openssl-dev
+atp-get install libxml2-dev</code></pre>
+<p>To run the following analysis, the file <a href="ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz"><code>GSE127221_PBMC_merged_filtered_recoded.rds</code></a> must be obtained from the GEO series related to this study (GSE127221). The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as <code>Final_Data/table_s5.txt</code>. The following code assumes these files are within a subdirectory named “Final_Data” underneath the working directory. Note that cloning the github repo will create the necessary directory structure with supporting files. However, <code>PBMC_merged_filtered_recoded.rds</code> is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.</p>
 <p>For a vanilla R installation, the following steps are the simplest for setting up the environment:</p>
 <pre class="bash"><code>git clone https://github.com/vanandelinstitute/va_ecls
 cd va_ecls/Final_Data
@@ -302,8 +307,8 @@ cd ..</code></pre>
 rmarkdown::render(&quot;final_analysis.rds&quot;)</code></pre>
 <p>If you are using Rstudio, just click the Knit button, or run each chunk individually.</p>
 <p>If not already present, required R packages can be installed as follows:</p>
-<pre class="r"><code>setRepositories(ind=c(1,2))
-install.packages(c(&quot;devtools&quot;,
+<pre class="r"><code>setRepositories(ind=c(1,2,3,4))
+reqpkg &lt;- c(&quot;devtools&quot;,
                    &quot;irlba&quot;,
                    &quot;dplyr&quot;,
                    &quot;foreach&quot;,
@@ -322,7 +327,10 @@ install.packages(c(&quot;devtools&quot;,
                    &quot;clusterProfiler&quot;,
                    &quot;pheatmap&quot;,
                    &quot;org.Hs.eg.db&quot;,
-                   &quot;stringr&quot;))
+                   &quot;stringr&quot;)
+
+missingpkg &lt;- reqpkg[-which(reqpkg %in% installed.packages())]
+if(length(missingpkg)) install.packages(missingpkg)
 
 devtools::install_github(&quot;immunogenomics/harmony&quot;)
 devtools::install_github(&quot;jlmelville/uwot&quot;)
@@ -330,12 +338,12 @@ devtools::install_github(&quot;kassambara/rstatix&quot;)</code></pre>
 </div>
 <div id="data-pre-processing" class="section level2">
 <h2>Data Pre Processing</h2>
-<p>The data file <code>PBMC_merged_filtered_recoded.rds</code> contaings sequencing data that was aligned and converted to UMI counts with the inDrop pipeline. Barcodes were filtered to retain only cells with at least 500 unique counts.</p>
+<p>The data file <code>GSE127221_PBMC_merged_filtered_recoded.rds</code> contaings sequencing data that was aligned and converted to UMI counts with the inDrop pipeline. Barcodes were filtered to retain only cells with at least 500 unique counts.</p>
 <p>As shown below, we then further filtered this dataset to select cells with between 750 and 7500 unique counts in an effort to select true, single cells. We then normalized by library size, scaled by a constant (10000), and log transformed, as follows:</p>
 <pre class="r"><code>library(Matrix)
 library(irlba)
 
-dat &lt;- readRDS(&quot;Final_Data/PBMC_merged_filtered_recoded.rds&quot;)
+dat &lt;- readRDS(&quot;Final_Data/GSE127221_PBMC_merged_filtered_recoded.rds&quot;)
 
 # filtering, somewhat subjectively, for true, single cells
 cellCounts &lt;- Matrix::rowSums(dat)
