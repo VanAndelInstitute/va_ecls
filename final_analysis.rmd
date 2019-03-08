@@ -12,7 +12,7 @@ date: "February 20, 2019"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
+knitr::opts_chunk$set(echo = TRUE, eval=TRUE)
 ```
 
 ## Introduction
@@ -62,7 +62,8 @@ To run the following analysis, the file [`GSE127221_PBMC_merged_filtered_recoded
 For a vanilla R installation, the following steps are the simplest for setting up the environment:
 
 ```bash
-git clone https://github.com/vanandelinstitute/va_ecls
+git clone https://github.com/vanande
+linstitute/va_ecls
 cd va_ecls/Final_Data
 wget ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz
 gunzip *.gz
@@ -84,26 +85,27 @@ If not already present, required R packages can be installed as follows:
 ```{r}
 
 setRepositories(ind=c(1,2,3,4))
-reqpkg <- c("devtools",
-                   "irlba",
+reqpkg <- c("clusterProfiler",
+                   "cowplot",
+                   "dendextend",
+                   "devtools",
+                   "doParallel",
+                   "DOSE",
                    "dplyr",
                    "foreach",
-                   "doParallel",
-                   "dendextend",
-                   "Matrix",
-                   "reshape2",
                    "ggplot2",
                    "GGally",
                    "ggpubr",
                    "ggplotify",
-                   "survminer",
-                   "cowplot",
-                   "survival",
-                   "DOSE",
-                   "clusterProfiler",
-                   "pheatmap",
+                   "irlba",
+                   "Matrix",
                    "org.Hs.eg.db",
-                   "stringr")
+                   "pheatmap",
+                   "reshape2",
+                   "rsvd",
+                   "survminer",
+                   "stringr",
+                   "survival")
 
 missingpkg <- reqpkg[-which(reqpkg %in% installed.packages())]
 if(length(missingpkg)) install.packages(missingpkg)

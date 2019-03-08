@@ -296,7 +296,8 @@ apt-get install libcurl4-openssl-dev
 atp-get install libxml2-dev</code></pre>
 <p>To run the following analysis, the file <a href="ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz"><code>GSE127221_PBMC_merged_filtered_recoded.rds</code></a> must be obtained from the GEO series related to this study (GSE127221). The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as <code>Final_Data/table_s5.txt</code>. The following code assumes these files are within a subdirectory named “Final_Data” underneath the working directory. Note that cloning the github repo will create the necessary directory structure with supporting files. However, <code>PBMC_merged_filtered_recoded.rds</code> is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.</p>
 <p>For a vanilla R installation, the following steps are the simplest for setting up the environment:</p>
-<pre class="bash"><code>git clone https://github.com/vanandelinstitute/va_ecls
+<pre class="bash"><code>git clone https://github.com/vanande
+linstitute/va_ecls
 cd va_ecls/Final_Data
 wget ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz
 gunzip *.gz
@@ -308,26 +309,27 @@ rmarkdown::render(&quot;final_analysis.rds&quot;)</code></pre>
 <p>If you are using Rstudio, just click the Knit button, or run each chunk individually.</p>
 <p>If not already present, required R packages can be installed as follows:</p>
 <pre class="r"><code>setRepositories(ind=c(1,2,3,4))
-reqpkg &lt;- c(&quot;devtools&quot;,
-                   &quot;irlba&quot;,
+reqpkg &lt;- c(&quot;clusterProfiler&quot;,
+                   &quot;cowplot&quot;,
+                   &quot;dendextend&quot;,
+                   &quot;devtools&quot;,
+                   &quot;doParallel&quot;,
+                   &quot;DOSE&quot;,
                    &quot;dplyr&quot;,
                    &quot;foreach&quot;,
-                   &quot;doParallel&quot;,
-                   &quot;dendextend&quot;,
-                   &quot;Matrix&quot;,
-                   &quot;reshape2&quot;,
                    &quot;ggplot2&quot;,
                    &quot;GGally&quot;,
                    &quot;ggpubr&quot;,
                    &quot;ggplotify&quot;,
-                   &quot;survminer&quot;,
-                   &quot;cowplot&quot;,
-                   &quot;survival&quot;,
-                   &quot;DOSE&quot;,
-                   &quot;clusterProfiler&quot;,
-                   &quot;pheatmap&quot;,
+                   &quot;irlba&quot;,
+                   &quot;Matrix&quot;,
                    &quot;org.Hs.eg.db&quot;,
-                   &quot;stringr&quot;)
+                   &quot;pheatmap&quot;,
+                   &quot;reshape2&quot;,
+                   &quot;rsvd&quot;,
+                   &quot;survminer&quot;,
+                   &quot;stringr&quot;,
+                   &quot;survival&quot;)
 
 missingpkg &lt;- reqpkg[-which(reqpkg %in% installed.packages())]
 if(length(missingpkg)) install.packages(missingpkg)
