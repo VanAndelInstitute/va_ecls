@@ -47,9 +47,17 @@ Since the processed data elements created below are save as RDS files in the chu
 
 ## Pre-requisites
 
-Running the following analysis requires a computer with R version >= 3.5.0 and 128GB of RAM, with `pandoc` installed (e.g., `sudo apt-get instal pandoc` if running a debian flavored unix like Ubuntu). 
+Running the following analysis requires a computer with R version >= 3.5.0 and 128GB of RAM, with `pandoc`, and development libraries for SSL, XML, and curl installed.  This would be achieved on a debian flavored server as follows:
 
-To run the following analysis, the file [`PBMC_merged_filtered_recoded.rds`](https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE127221&format=file&file=GSE127221%5FPBMC%5Fmerged%5Ffiltered%5Frecoded%2Erds%2Egz) must be obtained from the GEO series related to this study (GSE127221).  The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as `Final_Data/table_s5.txt`.  The following code assumes these files are within a subdirectory named "Final_Data" underneath the working directory.  Note that cloning the github repo will create the necessary directory structure with supporting files.  However, `PBMC_merged_filtered_recoded.rds` is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.
+```bash
+sudo -s
+apt-get instal pandoc
+apt-get install libssl-dev
+apt-get install libcurl4-openssl-dev
+atp-get install libxml2-dev
+```
+
+To run the following analysis, the file [`GSE127221_PBMC_merged_filtered_recoded.rds`](ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz) must be obtained from the GEO series related to this study (GSE127221).  The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as `Final_Data/table_s5.txt`.  The following code assumes these files are within a subdirectory named "Final_Data" underneath the working directory.  Note that cloning the github repo will create the necessary directory structure with supporting files.  However, `PBMC_merged_filtered_recoded.rds` is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.
 
 For a vanilla R installation, the following steps are the simplest for setting up the environment:
 
@@ -75,8 +83,8 @@ If not already present, required R packages can be installed as follows:
 
 ```{r}
 
-setRepositories(ind=c(1,2))
-install.packages(c("devtools",
+setRepositories(ind=c(1,2,3,4))
+reqpkg <- c("devtools",
                    "irlba",
                    "dplyr",
                    "foreach",
@@ -95,7 +103,10 @@ install.packages(c("devtools",
                    "clusterProfiler",
                    "pheatmap",
                    "org.Hs.eg.db",
-                   "stringr"))
+                   "stringr")
+
+missingpkg <- reqpkg[-which(reqpkg %in% installed.packages())]
+if(length(missingpkg)) install.packages(missingpkg)
 
 devtools::install_github("immunogenomics/harmony")
 devtools::install_github("jlmelville/uwot")
@@ -105,15 +116,15 @@ devtools::install_github("kassambara/rstatix")
 
 ## Data Pre Processing
 
-The data file `PBMC_merged_filtered_recoded.rds` contaings sequencing data that was aligned and converted to UMI counts with the inDrop pipeline.  Barcodes were filtered to retain only cells with at least 500 unique counts.
+The data file `GSE127221_PBMC_merged_filtered_recoded.rds` contaings sequencing data that was aligned and converted to UMI counts with the inDrop pipeline.  Barcodes were filtered to retain only cells with at least 500 unique counts.
 
 As shown below, we then further filtered this dataset to select cells with between 750 and 7500 unique counts in an effort to select true, single cells. We then normalized by library size, scaled by a constant (10000), and log transformed, as follows:
 
-```{r, eval=FALSE}
+```{r}
 library(Matrix)
 library(irlba)
 
-dat <- readRDS("Final_Data/PBMC_merged_filtered_recoded.rds")
+dat <- readRDS("Final_Data/GSE127221_PBMC_merged_filtered_recoded.rds")
 
 # filtering, somewhat subjectively, for true, single cells
 cellCounts <- Matrix::rowSums(dat)
