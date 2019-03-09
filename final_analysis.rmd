@@ -12,7 +12,7 @@ date: "February 20, 2019"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval=TRUE)
+knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
 ```
 
 ## Introduction
@@ -51,10 +51,11 @@ Running the following analysis requires a computer with R version >= 3.5.0 and 1
 
 ```bash
 sudo -s
-apt-get instal pandoc
-apt-get install libssl-dev
-apt-get install libcurl4-openssl-dev
-atp-get install libxml2-dev
+apt-get update
+apt-get -y instal pandoc
+apt-get -y install libssl-dev
+apt-get -y install libcurl4-openssl-dev
+apt-get -y install libxml2-dev
 ```
 
 To run the following analysis, the file [`GSE127221_PBMC_merged_filtered_recoded.rds`](ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz) must be obtained from the GEO series related to this study (GSE127221).  The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as `Final_Data/table_s5.txt`.  The following code assumes these files are within a subdirectory named "Final_Data" underneath the working directory.  Note that cloning the github repo will create the necessary directory structure with supporting files.  However, `PBMC_merged_filtered_recoded.rds` is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.
@@ -62,8 +63,7 @@ To run the following analysis, the file [`GSE127221_PBMC_merged_filtered_recoded
 For a vanilla R installation, the following steps are the simplest for setting up the environment:
 
 ```bash
-git clone https://github.com/vanande
-linstitute/va_ecls
+git clone https://github.com/vanandelinstitute/va_ecls
 cd va_ecls/Final_Data
 wget ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz
 gunzip *.gz
@@ -75,7 +75,7 @@ If you are not using Rstudio, the following step (from within an R session) is r
 ```{r, eval=FALSE}
 install.packages("rmarkdown")
 # the next line will render this documnt, generating all the intermediate data files and figures
-rmarkdown::render("final_analysis.rds")
+rmarkdown::render("final_analysis.rmd")
 ```
 
 If you are using Rstudio, just click the Knit button, or run each chunk individually.
