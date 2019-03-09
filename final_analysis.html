@@ -290,14 +290,14 @@ div.tocify {
 <h2>Pre-requisites</h2>
 <p>Running the following analysis requires a computer with R version &gt;= 3.5.0 and 128GB of RAM, with <code>pandoc</code>, and development libraries for SSL, XML, and curl installed. This would be achieved on a debian flavored server as follows:</p>
 <pre class="bash"><code>sudo -s
-apt-get instal pandoc
-apt-get install libssl-dev
-apt-get install libcurl4-openssl-dev
-atp-get install libxml2-dev</code></pre>
+apt-get update
+apt-get -y instal pandoc
+apt-get -y install libssl-dev
+apt-get -y install libcurl4-openssl-dev
+apt-get -y install libxml2-dev</code></pre>
 <p>To run the following analysis, the file <a href="ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz"><code>GSE127221_PBMC_merged_filtered_recoded.rds</code></a> must be obtained from the GEO series related to this study (GSE127221). The second panel of figure 4b requires the list of genes from Supplmental Table S5, which is available in the gitub repository as <code>Final_Data/table_s5.txt</code>. The following code assumes these files are within a subdirectory named “Final_Data” underneath the working directory. Note that cloning the github repo will create the necessary directory structure with supporting files. However, <code>PBMC_merged_filtered_recoded.rds</code> is too large for the gitub repository, and thus must be obtained from GEO and saved in the Final_Data directory.</p>
 <p>For a vanilla R installation, the following steps are the simplest for setting up the environment:</p>
-<pre class="bash"><code>git clone https://github.com/vanande
-linstitute/va_ecls
+<pre class="bash"><code>git clone https://github.com/vanandelinstitute/va_ecls
 cd va_ecls/Final_Data
 wget ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE127nnn/GSE127221/suppl/GSE127221_PBMC_merged_filtered_recoded.rds.gz
 gunzip *.gz
@@ -305,7 +305,7 @@ cd ..</code></pre>
 <p>If you are not using Rstudio, the following step (from within an R session) is required to install the rmarkdown tools. If you are using Rstudio, you can skip this.</p>
 <pre class="r"><code>install.packages(&quot;rmarkdown&quot;)
 # the next line will render this documnt, generating all the intermediate data files and figures
-rmarkdown::render(&quot;final_analysis.rds&quot;)</code></pre>
+rmarkdown::render(&quot;final_analysis.rmd&quot;)</code></pre>
 <p>If you are using Rstudio, just click the Knit button, or run each chunk individually.</p>
 <p>If not already present, required R packages can be installed as follows:</p>
 <pre class="r"><code>setRepositories(ind=c(1,2,3,4))
