@@ -52,7 +52,7 @@ Running the following analysis requires a computer with R version >= 3.5.0 and 1
 ```bash
 sudo -s
 apt-get update
-apt-get -y instal pandoc
+apt-get -y install pandoc
 apt-get -y install libssl-dev
 apt-get -y install libcurl4-openssl-dev
 apt-get -y install libxml2-dev
