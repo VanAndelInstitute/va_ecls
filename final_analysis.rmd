@@ -8,7 +8,7 @@ output:
     toc_float: yes
   pdf_document:
     toc: yes
-date: "February 20, 2019"
+date: "April 9, 2019"
 ---
 
 ```{r setup, include=FALSE}
@@ -1298,3 +1298,8 @@ fig4()
 
 ```
 
+## Figure 5
+
+Figure 5 presents flow cytometric analysis of a validation set of patient 
+samples. No single cell RNASeq data is presented in figure 5. Supporting 
+data for figure 5 is available from the authors upon request.
