@@ -1,4 +1,5 @@
 *
 !.gitignore
-!metadata.rds
 !table_s5.txt
+!metadata_clin_cyt.rds
+!metadata_facs.rds
