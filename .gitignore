@@ -5,7 +5,7 @@
 # images
 *.pdf
 *.png
-
+*.tif
 
 # Session Data files
 .RData

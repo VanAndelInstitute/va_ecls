@@ -4,15 +4,16 @@ output:
   html_document:
     highlight: null
     theme: lumen
-    toc: yes
-    toc_float: yes
+    toc: no
+    toc_float: no
   pdf_document:
     toc: yes
-date: "February 25, 2020"
+date: "March 6, 2020"
 ---
 
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
+knitr::opts_chunk$set(echo = TRUE, eval=FALSE, tidy.opts=list(width.cutoff=60),tidy=TRUE)
 ```
 
 ## Introduction
@@ -344,6 +345,16 @@ pv <- foreach (i = c(1:4)) %do% {
   t.test(md[, i]~md$Survived)$p.value
 }
 
+pv.ev <- foreach (i = c(1:4)) %do% {
+  t.test(md[, i]~md$Survived, var.equal=TRUE)$p.value
+}
+
+# SOFA and eGFR have equal variance, the other two variables
+# do not.
+
+pv[[3]] <- pv.ev[[3]]
+pv[[4]] <- pv.ev[[4]]
+pv.a <- pv
 # extract partial dataset to clean up labels, etc.
 dat <- md[, 1:4]
 dat$Survived <- md$Survived
@@ -352,7 +363,7 @@ colnames(dat) <- c("Age", "Arterial pH", "SOFA", "eGFR", "Survived")
 
 # Panel 1A
 
-pl <- foreach(i = 1:4) %do% {
+pl_a <- foreach(i = 1:4) %do% {
   gd <- data.frame(Survived = dat$Survived, y = dat[,i])
   ggplot(gd, aes(x = Survived, y=y)) +
     geom_jitter(width=0.1, height=0.1) + 
@@ -362,7 +373,7 @@ pl <- foreach(i = 1:4) %do% {
     annotate("text", 
              size = 3,
              fontface = 2,
-             label = fp(as.numeric(pv[i])), 
+             label = fp(as.numeric(pv.a[i])), 
              x = -Inf, 
              y = Inf, 
              hjust = -0.1,
@@ -377,9 +388,9 @@ pl <- foreach(i = 1:4) %do% {
     theme(plot.margin = unit(c(0.1,1,0.2,0.2), "lines")) 
 }
 
-png("fig_1a.png", width=1500, height=1500, res=300)
-plot_grid(plotlist=pl, ncol = 2, align="v")
-dev.off()
+# png("fig_1a.png", width=1500, height=1500, res=300)
+# plot_grid(plotlist=pl_a, ncol = 2, align="v")
+# dev.off()
 
 # Panel 1B
 
@@ -400,7 +411,7 @@ dat$Survived <- md$Survived
 colnames(dat) <- gsub("(.{2,3})_(.{1,2})_.*", "\\1-\\2", colnames(dat))
 
 options(scipen=1000000)
-pl <- foreach(i = 1:5) %do% {
+pl_b <- foreach(i = 1:5) %do% {
   gd <- data.frame(Survived = dat$Survived, y = dat[,i]+1)
   ggplot(gd, aes(x = Survived, y=y)) +
     geom_jitter(width=0.05, height=0.05) + 
@@ -432,9 +443,20 @@ pl <- foreach(i = 1:5) %do% {
     theme(plot.margin = unit(c(0.1,1,0,0.2), "lines")) 
 }
 
-png("fig_1b.png", width=1500, height=2200, res=300)
-plot_grid(plotlist=c(pl), ncol = 2, align="v")
+a <- plot_grid(plotlist=c(pl_a), ncol = 2, align="v")
+b <- plot_grid(plotlist=c(pl_b), ncol = 2, align="v")
+tiff("fig1.tif", compression = "lzw", width=4000, height=9000, res = 800)
+plot_grid(a + theme(plot.margin = unit(c(.7, 0, 0, .7), "cm")),
+          b + theme(plot.margin = unit(c(.7, 0, 0, .7), "cm")),
+          nrow = 2, 
+          ncol = 1,
+          rel_heights = c(0.4, 0.6),
+          labels = c("A", "B")) 
 dev.off()
+
+# png("fig_1b.png", width=1500, height=2200, res=300)
+# plot_grid(plotlist=c(pl), ncol = 2, align="v")
+# dev.off()
 ```
 
 ## Figure 2
@@ -800,9 +822,9 @@ dev.off()
 
 ```
 
-## Figure 3
+## Supplemental Figure S1
 
-Figure 3, stratified by surviving vs. non-surviving patients (72 hours). 
+Figure S1, stratified by surviving vs. non-surviving patients (72 hours). 
 
 ```{r}
 
@@ -811,7 +833,7 @@ load_init()
 
 types <- readRDS("Final_Data/cell_types.rds")
 
-fig3 <- function() {
+figS1 <- function() {
   ids <- gsub("\\..*", "", rownames(dat.imp))
   
   # cell counts per patient, dropping unknown cells
@@ -864,15 +886,15 @@ fig3 <- function() {
     theme(legend.position = "none") 
 }
 
-F3 <- fig3()
+FS1 <- figS1()
 
-png("fig3.png", height=3000, width=2000, type = "cairo", res = 300)
-print(F3)
+png("figS1.png", height=3000, width=2000, type = "cairo", res = 300)
+print(FS1)
 dev.off()
 
 ```
 
-## Figure 4 
+## Figure 3
 
 As none of the major cell types seemed predictive of survival, we wanted to
 drill into each cell type and find biological processes and surface markers that
@@ -1045,7 +1067,7 @@ p-value (t-test) for each gene (within each subtype).
 
 ```{r}
 
-fig4_a_hm <- function() {
+fig3_a_hm <- function() {
   props <- readRDS("Final_Data/gene_props.rds")
   # take 1 - adjusted pvalue (so the most significant genes are the 
   # extremes of the scale), and set sign to the direction of the 
@@ -1091,7 +1113,7 @@ fig4_a_hm <- function() {
             rel_heights=c(1, .15))
 }
 
-F4A_pre <- fig4_a_hm()
+F3A_pre <- fig3_a_hm()
 ```
 
 In an effort to functionalize the gene clusters, we performed Gene Ontology term
@@ -1256,8 +1278,8 @@ We can then add the annotation bar to our heatmap.
 dg <- readRDS(file="Final_Data/gene_prop_dendrogram.rds")
 go_enrich <- readRDS("Final_Data/go_enrichment.rds")
 
-# fig4b panel 1 with GO annotation
-fig4a_ann <- function() {
+# fig3b panel 1 with GO annotation
+fig3a_ann <- function() {
   blank <- grid.rect(gp=gpar(col="white"))
   dend <- plot_grid(dendnote(dg, 
                      12, 
@@ -1274,7 +1296,7 @@ fig4a_ann <- function() {
             dend,
             rel_widths = c(1.2, 1))
 } 
-F4A <- fig4a_ann()
+F3A <- fig3a_ann()
 
 
   
@@ -1282,7 +1304,7 @@ F4A <- fig4a_ann()
 
 We did not have room in the figure to display every significant GO term.  But of
 course, we want to report them, and we do so in supplemental table S4. For
-figure 4 in the manuscript, we wanted the node ids to be in numerical order, top
+figure 3 in the manuscript, we wanted the node ids to be in numerical order, top
 to bottom.  But this is not the way `cutree` numbers the subtrees (it numbers
 them hierachically as it encounters them). Below we create a table of
 significant GO terms with both the original node id as assigned by `cutree` and
@@ -1336,7 +1358,7 @@ split nicely into two groups.
 
 props <- readRDS("Final_Data/gene_props_cytokines.rds")
 
-fig4b <- function() {
+fig3b <- function() {
   props <- readRDS(file="Final_Data/gene_props_cytokines.rds")
   # take 1 - adjusted pvalue (so the most significant genes are the 
   # extremes of the scale), and set sign to the direction of the 
@@ -1396,7 +1418,7 @@ fig4b <- function() {
             labels=c("Predominantly Up in Survived", "Predominantly Up in Died"))
 }
 
-F4B <- fig4b()
+F3B <- fig3b()
 
 ```
 
@@ -1404,15 +1426,16 @@ And we can assemble the figure. Note that some additional annotation to the
 legend was added after the fact for the final figure in the paper.
 
 ```{r}
-png("fig4.png", width=4500, height=3000, res=300)
-plot_grid(F4A, 
-          F4B + theme(plot.margin = unit(c(1,0,1.8,0.5), "lines")),
+tiff("Figure 3.tif", compression = "lzw", width=4500, height=3000, res = 300)
+#png("fig3.png", width=4500, height=3000, res=300)
+plot_grid(F3A, 
+          F3B + theme(plot.margin = unit(c(1,0,1.8,0.5), "lines")),
           ncol=2, rel_widths = c(0.45, 0.55), labels=c("A", "B"))
 dev.off()
 
 ```
 
-## Figure 5
+## Figure 4
 
 In order to facilitate future isolation of interesting cell subpopulations by
 FACS, we would also like to focus in on surface markers specifically. We
@@ -1471,7 +1494,7 @@ dat.m <- dat.m[order(dat.m$p, decreasing=TRUE),]
 dat.m$gene <- factor(dat.m$gene, levels=unique(dat.m$gene))
 dat.m$p <- sign(-dat.m$logratio) * -log(dat.m$p)
 
-F5A <- ggplot(dat.m, aes(x=L1, y=gene, size=prop.positive, color=p)) +
+F4A <- ggplot(dat.m, aes(x=L1, y=gene, size=prop.positive, color=p)) +
   geom_point() +
   scale_colour_gradientn(colours=c("#C02222", "white", "#176BA0")) + 
   xlab("Cell Type") + 
@@ -1539,7 +1562,7 @@ We can then perform survival analysis based on CD52 expression in CD8+ NKT Cells
 
 load_init()
 
-fig5b <- function() {
+fig4b <- function() {
   dat <- readRDS("Final_Data/PBMC_merged_filtered_alra_variable_genes.rds")
   types <- readRDS("Final_Data/cell_types.rds")
   types.p <- factor(types[which(!types %in% c("Erythrocytes", "Unknown"))])
@@ -1559,7 +1582,7 @@ fig5b <- function() {
   p1
 }
 
-F5B <- fig5b()
+F4B <- fig4b()
 
 
 ```
@@ -1616,25 +1639,26 @@ p2 <- ggplot(md, aes(x = cd52_prop, y=ph_art)) +
     my_theme_pretty_grid +
     theme(plot.margin = unit(c(1,1,0.2,1), "lines")) 
 
-F5CD <- plot_grid(p1, p2, ncol = 2, nrow=1, align='v', labels = c("C", "D"))
+F4CD <- plot_grid(p1, p2, ncol = 2, nrow=1, align='v', labels = c("C", "D"))
 
 ```
 
 And we can assemble the complete figure...
 
 ```{r}
-png("fig5.png", width=1700, height=3500, res=300)
-plot_grid(F5A, 
-          F5B + theme(plot.margin = unit(c(0.2,1,1,1), "lines")), 
-          F5CD, 
+#png("fig5.png", width=1700, height=3500, res=300)
+tiff("Figure 4.tif", width=3400, height=7000, res=600)
+plot_grid(F4A, 
+          F4B + theme(plot.margin = unit(c(0.2,1,1,1), "lines")), 
+          F4CD, 
           nrow=3, rel_heights = c(0.5, 0.3, 0.2), labels=c("A", "B", ""))
 dev.off()
 
 ```
 
-## Figure 6
+## Figure 5
 
-Figure 6 summarizes our analysis of a second cohort of patients 
+Figure 5 summarizes our analysis of a second cohort of patients 
 assessed to validate our findings with respect to CD8+/CD52+ 
 NKT cells. 
 
@@ -1643,7 +1667,7 @@ the population shift between surviving and non-surviving patients.
 
 ```{r}
 
-F6A <- ggplot() + theme_void()
+F5A <- ggplot() + theme_void()
 
 ```
 Panel B again presents clinical data, but now stratified by 
@@ -1696,7 +1720,7 @@ pl <- foreach(i = 1:4) %do% {
     theme(plot.margin = unit(c(0.1,1,0.2,0.2), "lines")) 
 }
 
-F6B <- plot_grid(plotlist=pl, ncol = 2, nrow=2, align="v")
+F5B <- plot_grid(plotlist=pl, ncol = 2, nrow=2, align="v")
 
 ```
 
@@ -1708,7 +1732,7 @@ md$surv_time_72[which(md$surv_time > 72)] <- 72
 md$surv_72 <- Surv(md$surv_time_72, event = md$surv_time_72 < 72)
 print(survdiff(surv_72 ~ High_CD52, data=md))
 print(summary(coxph(surv_72 ~ High_CD52, data=md)))
-F6C <-  ggsurvplot(survfit(surv_72 ~ High_CD52, data=md), 
+F5C <-  ggsurvplot(survfit(surv_72 ~ High_CD52, data=md), 
              color = "black", 
              ggtheme = my_theme_no_space + my_theme_wider_lab + 
                        theme(legend.title = element_text(size=10, face="bold"),
@@ -1723,16 +1747,17 @@ F6C <-  ggsurvplot(survfit(surv_72 ~ High_CD52, data=md),
              legend.labs = c("Low", "High") ) +
       xlab("Time (Hours)") + ylab("Survival")
 
-F6C <- F6C[[1]]
+F5C <- F5C[[1]]
 ```
 
 And we can assemble the plot:
 
 ```{r}
-png("fig6.png", width=1500, height=3500, res=300)
-plot_grid(F6A, 
-          F6B + theme(plot.margin = unit(c(1,1,0,1), "lines")), 
-          F6C + theme(plot.margin = unit(c(.2,1,0,1), "lines")),  
+png("fig5.png", width=1500, height=3500, res=300)
+tiff("Figure 5.tif", width=3000, height=7000, res=600)
+plot_grid(F5A, 
+          F5B + theme(plot.margin = unit(c(1,1,0,1), "lines")), 
+          F5C + theme(plot.margin = unit(c(.2,1,0,1), "lines")),  
           nrow=3, rel_heights = c(.33, .4, .27), labels=c("A", "B", "C"))
 dev.off()
 ```
